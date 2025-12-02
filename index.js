@@ -168,8 +168,8 @@ client.on(Events.InteractionCreate, async (ix) => {
       
       console.log(`Spam command: ${amount} pings to ${target.tag}`);
       
-      // Reply immediately to avoid timeout
-      await ix.reply(`Spamming <@${target.id}> ${amount} times...`);
+      // Defer reply to get more time
+      await ix.deferReply();
       
       // Send pings with 0.35 second delay
       for (let i = 0; i < amount; i++) {
@@ -179,10 +179,15 @@ client.on(Events.InteractionCreate, async (ix) => {
       }
       
       console.log(`Spam complete: sent ${amount} pings`);
+      await ix.editReply(`✅ Spammed <@${target.id}> ${amount} times`);
     } catch (e) {
       console.error("/spam:", e);
       try {
-        await ix.reply({ content: "error", ephemeral: true });
+        if (ix.deferred) {
+          await ix.editReply("error");
+        } else {
+          await ix.reply({ content: "error", flags: 64 });
+        }
       } catch {}
     }
   }
