@@ -162,34 +162,21 @@ client.on(Events.InteractionCreate, async (ix) => {
 
   // ===== /spam =====
   if (ix.commandName === "spam") {
-    try {
-      const target = ix.options.getUser("who", true);
-      const amount = ix.options.getInteger("amount", true);
-      
-      console.log(`Spam command: ${amount} pings to ${target.tag}`);
-      
-      // Defer reply to get more time
-      await ix.deferReply();
-      
-      // Send pings with 0.35 second delay
-      for (let i = 0; i < amount; i++) {
-        console.log(`Sending ping ${i + 1}/${amount}`);
-        await ix.channel.send(`<@${target.id}>`);
-        await sleep(350);
-      }
-      
-      console.log(`Spam complete: sent ${amount} pings`);
-      await ix.editReply(`✅ Spammed <@${target.id}> ${amount} times`);
-    } catch (e) {
-      console.error("/spam:", e);
+    const target = ix.options.getUser("who", true);
+    const amount = ix.options.getInteger("amount", true);
+    
+    await ix.deferReply();
+    
+    for (let i = 0; i < amount; i++) {
       try {
-        if (ix.deferred) {
-          await ix.editReply("error");
-        } else {
-          await ix.reply({ content: "error", flags: 64 });
-        }
-      } catch {}
+        await ix.channel.send(`<@${target.id}>`);
+      } catch (err) {
+        console.error(`Ping ${i + 1} failed:`, err);
+      }
+      if (i < amount - 1) await sleep(350);
     }
+    
+    await ix.editReply(`Done! Sent ${amount} pings.`);
   }
 });
 
