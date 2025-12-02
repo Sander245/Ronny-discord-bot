@@ -168,8 +168,8 @@ client.on(Events.InteractionCreate, async (ix) => {
         await ix.reply({ content: "Message is too long (max 6000 chars)", ephemeral: true });
         return;
       }
-      const username = ix.user.displayName || ix.user.username;
-      await ix.reply(`**${username}:** ${message}`);
+      const username = ix.member?.displayName || ix.user.username;
+      await ix.reply(`${username}: ${message}`);
     } catch (e) {
       console.error("/bettermessage:", e);
       await ix.reply({ content: "error", ephemeral: true }).catch(() => {});
