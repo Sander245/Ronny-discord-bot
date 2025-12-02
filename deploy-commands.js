@@ -23,17 +23,7 @@ const commands = [
     ],
   },
   {
-    name: 'bettermessage',
-    description: 'Send a formatted message',
-    dm_permission: true,
-    integration_types: [0, 1],
-    contexts: [0, 1, 2],
-    options: [
-      { name: 'message', description: 'Your message (max 6000 chars)', type: 3, required: true }
-    ],
-  },
-  {
-    name: 'attack',
+    name: 'spam',
     description: 'Ping someone multiple times',
     dm_permission: false,
     integration_types: [0],

@@ -160,35 +160,20 @@ client.on(Events.InteractionCreate, async (ix) => {
     }
   }
 
-  // ===== /bettermessage =====
-  if (ix.commandName === "bettermessage") {
-    try {
-      const message = ix.options.getString("message", true);
-      if (message.length > 6000) {
-        await ix.reply({ content: "Message is too long (max 6000 chars)", ephemeral: true });
-        return;
-      }
-      await ix.reply(message);
-    } catch (e) {
-      console.error("/bettermessage:", e);
-      await ix.reply({ content: "error", ephemeral: true }).catch(() => {});
-    }
-  }
-
-  // ===== /attack =====
-  if (ix.commandName === "attack") {
+  // ===== /spam =====
+  if (ix.commandName === "spam") {
     try {
       const target = ix.options.getUser("who", true);
       const amount = ix.options.getInteger("amount", true);
       
-      await ix.reply({ content: `Attacking ${target}...`, ephemeral: true });
+      await ix.reply({ content: `Spamming ${target}...`, ephemeral: true });
       
       // Send pings rapidly
       for (let i = 0; i < amount; i++) {
         await ix.channel.send(`<@${target.id}>`);
       }
     } catch (e) {
-      console.error("/attack:", e);
+      console.error("/spam:", e);
       await ix.reply({ content: "error", ephemeral: true }).catch(() => {});
     }
   }
