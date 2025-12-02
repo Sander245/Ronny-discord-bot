@@ -143,9 +143,9 @@ client.on(Events.MessageCreate, async (msg) => {
 client.on(Events.InteractionCreate, async (ix) => {
   if (!ix.isChatInputCommand()) return;
 
-  // ===== /ask =====
-  if (ix.commandName === "ask") {
-    try {
+  try {
+    // ===== /ask =====
+    if (ix.commandName === "ask") {
       const text = ix.options.getString("text", true);
       const who = ensurePersona(ix.options.getString("who") || "ronny");
       const username = ix.user.displayName || ix.user.username;
@@ -154,29 +154,24 @@ client.on(Events.InteractionCreate, async (ix) => {
       await typeAndWait(ix.channel);
       const response = await askPersona(who, context, text, username);
       await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
-    } catch (e) {
-      console.error("/ask:", e);
-      await ix.editReply("error").catch(() => {});
     }
-  }
 
-  // ===== /spam =====
-  if (ix.commandName === "spam") {
-    const target = ix.options.getUser("who", true);
-    const amount = ix.options.getInteger("amount", true);
-    
-    await ix.deferReply();
-    
-    for (let i = 0; i < amount; i++) {
-      try {
+    // ===== /spam =====
+    if (ix.commandName === "spam") {
+      if (ix.replied || ix.deferred) return;
+      
+      const target = ix.options.getUser("who", true);
+      const amount = ix.options.getInteger("amount", true);
+      
+      await ix.reply(`Spamming ${amount} times...`);
+      
+      for (let i = 0; i < amount; i++) {
         await ix.channel.send(`<@${target.id}>`);
-      } catch (err) {
-        console.error(`Ping ${i + 1} failed:`, err);
+        await sleep(350);
       }
-      if (i < amount - 1) await sleep(350);
     }
-    
-    await ix.editReply(`Done! Sent ${amount} pings.`);
+  } catch (e) {
+    console.error(`Command error:`, e);
   }
 });
 
