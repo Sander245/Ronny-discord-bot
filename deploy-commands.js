@@ -22,6 +22,27 @@ const commands = [
       }
     ],
   },
+  {
+    name: 'bettermessage',
+    description: 'Send a formatted message',
+    dm_permission: true,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+    options: [
+      { name: 'message', description: 'Your message (max 6000 chars)', type: 3, required: true }
+    ],
+  },
+  {
+    name: 'attack',
+    description: 'Ping someone multiple times (Sigma boy only)',
+    dm_permission: false,
+    integration_types: [0],
+    contexts: [0],
+    options: [
+      { name: 'who', description: 'User to ping', type: 6, required: true },
+      { name: 'amount', description: 'Number of pings', type: 4, required: true, min_value: 1, max_value: 50 }
+    ],
+  },
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);

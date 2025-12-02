@@ -141,19 +141,66 @@ client.on(Events.MessageCreate, async (msg) => {
 
 // ===== /ask =====
 client.on(Events.InteractionCreate, async (ix) => {
-  if (!ix.isChatInputCommand() || ix.commandName !== "ask") return;
-  try {
-    const text = ix.options.getString("text", true);
-    const who = ensurePersona(ix.options.getString("who") || "ronny");
-    const username = ix.user.displayName || ix.user.username;
-    const context = await getRecentContext(ix.channel);
-    await ix.deferReply({ ephemeral: false });
-    await typeAndWait(ix.channel);
-    const response = await askPersona(who, context, text, username);
-    await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
-  } catch (e) {
-    console.error("/ask:", e);
-    await ix.editReply("error").catch(() => {});
+  if (!ix.isChatInputCommand()) return;
+
+  // ===== /ask =====
+  if (ix.commandName === "ask") {
+    try {
+      const text = ix.options.getString("text", true);
+      const who = ensurePersona(ix.options.getString("who") || "ronny");
+      const username = ix.user.displayName || ix.user.username;
+      const context = await getRecentContext(ix.channel);
+      await ix.deferReply({ ephemeral: false });
+      await typeAndWait(ix.channel);
+      const response = await askPersona(who, context, text, username);
+      await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
+    } catch (e) {
+      console.error("/ask:", e);
+      await ix.editReply("error").catch(() => {});
+    }
+  }
+
+  // ===== /bettermessage =====
+  if (ix.commandName === "bettermessage") {
+    try {
+      const message = ix.options.getString("message", true);
+      if (message.length > 6000) {
+        await ix.reply({ content: "Message is too long (max 6000 chars)", ephemeral: true });
+        return;
+      }
+      const username = ix.user.displayName || ix.user.username;
+      await ix.reply(`**${username}:** ${message}`);
+    } catch (e) {
+      console.error("/bettermessage:", e);
+      await ix.reply({ content: "error", ephemeral: true }).catch(() => {});
+    }
+  }
+
+  // ===== /attack =====
+  if (ix.commandName === "attack") {
+    try {
+      const displayName = ix.member?.displayName || ix.user.displayName || ix.user.username;
+      const username = ix.user.username;
+      
+      // Check if user is Sigma boy
+      if (displayName !== "Sigma boy" && username !== "sandothesigma_67061") {
+        await ix.reply({ content: "no", ephemeral: true });
+        return;
+      }
+
+      const target = ix.options.getUser("who", true);
+      const amount = ix.options.getInteger("amount", true);
+      
+      await ix.reply({ content: `Attacking ${target}...`, ephemeral: true });
+      
+      // Send pings rapidly
+      for (let i = 0; i < amount; i++) {
+        await ix.channel.send(`<@${target.id}>`);
+      }
+    } catch (e) {
+      console.error("/attack:", e);
+      await ix.reply({ content: "error", ephemeral: true }).catch(() => {});
+    }
   }
 });
 
