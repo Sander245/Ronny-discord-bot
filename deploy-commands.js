@@ -34,7 +34,7 @@ const commands = [
   },
   {
     name: 'attack',
-    description: 'Ping someone multiple times (Sigma boy only)',
+    description: 'Ping someone multiple times',
     dm_permission: false,
     integration_types: [0],
     contexts: [0],

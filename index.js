@@ -178,15 +178,6 @@ client.on(Events.InteractionCreate, async (ix) => {
   // ===== /attack =====
   if (ix.commandName === "attack") {
     try {
-      const displayName = ix.member?.displayName || ix.user.displayName || ix.user.username;
-      const username = ix.user.username;
-      
-      // Check if user is Sigma boy
-      if (displayName !== "Sigma boy" && username !== "sandothesigma_67061") {
-        await ix.reply({ content: "no", ephemeral: true });
-        return;
-      }
-
       const target = ix.options.getUser("who", true);
       const amount = ix.options.getInteger("amount", true);
       
