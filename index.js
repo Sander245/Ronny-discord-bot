@@ -166,14 +166,19 @@ client.on(Events.InteractionCreate, async (ix) => {
       const target = ix.options.getUser("who", true);
       const amount = ix.options.getInteger("amount", true);
       
+      console.log(`Spam command: ${amount} pings to ${target.tag}`);
+      
       // Reply immediately to avoid timeout
       await ix.reply(`Spamming <@${target.id}> ${amount} times...`);
       
       // Send pings with 0.35 second delay
       for (let i = 0; i < amount; i++) {
+        console.log(`Sending ping ${i + 1}/${amount}`);
         await ix.channel.send(`<@${target.id}>`);
         await sleep(350);
       }
+      
+      console.log(`Spam complete: sent ${amount} pings`);
     } catch (e) {
       console.error("/spam:", e);
       try {
