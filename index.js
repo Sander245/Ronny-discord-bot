@@ -166,7 +166,8 @@ client.on(Events.InteractionCreate, async (ix) => {
       const target = ix.options.getUser("who", true);
       const amount = ix.options.getInteger("amount", true);
       
-      await ix.reply({ content: `Spamming ${target}...`, ephemeral: false });
+      // Reply immediately to avoid timeout
+      await ix.reply(`Spamming <@${target.id}> ${amount} times...`);
       
       // Send pings with 0.35 second delay
       for (let i = 0; i < amount; i++) {
@@ -175,7 +176,9 @@ client.on(Events.InteractionCreate, async (ix) => {
       }
     } catch (e) {
       console.error("/spam:", e);
-      await ix.reply({ content: "error", ephemeral: true }).catch(() => {});
+      try {
+        await ix.reply({ content: "error", ephemeral: true });
+      } catch {}
     }
   }
 });
