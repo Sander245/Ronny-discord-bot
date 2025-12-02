@@ -25,9 +25,9 @@ const commands = [
   {
     name: 'spam',
     description: 'Ping someone multiple times',
-    dm_permission: false,
-    integration_types: [0],
-    contexts: [0],
+    dm_permission: true,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
     options: [
       { name: 'who', description: 'User to ping', type: 6, required: true },
       { name: 'amount', description: 'Number of pings', type: 4, required: true, min_value: 1, max_value: 50 }
