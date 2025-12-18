@@ -4,6 +4,14 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+  schedule:
+    # Runs approximately every 5h55m to stay within 6-hour timeout
+    # Scheduled at: 00:00, 05:55, 11:50, 17:45, 23:40
+    - cron: '0 0 * * *'
+    - cron: '55 5 * * *'
+    - cron: '50 11 * * *'
+    - cron: '45 17 * * *'
+    - cron: '40 23 * * *'
 
 jobs:
   run-bot:
@@ -36,4 +44,5 @@ jobs:
         CLIENT_ID: ${{ secrets.CLIENT_ID }}
         GUILD_ID: ${{ secrets.GUILD_ID }}
         GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      timeout-minutes: 355
       run: node index.js

@@ -59,12 +59,14 @@ This bot is configured to run automatically using GitHub Actions.
 
 - The bot runs automatically when you push to the `main` branch
 - It can also be triggered manually via the Actions tab
+- The bot runs on a scheduled cron job approximately every 5h55m to stay within GitHub Actions' 6-hour timeout limit
+  - Scheduled times: 00:00, 05:55, 11:50, 17:45, 23:40 UTC
 - The workflow will:
   1. Install dependencies
   2. Deploy slash commands
-  3. Start the bot
+  3. Start the bot (runs for up to 5h55m before timing out)
 
-**Note:** GitHub Actions has a 6-hour timeout for workflows, and free accounts have limited minutes per month. For 24/7 hosting, consider using a dedicated hosting service like Railway, Render, or Heroku.
+**Note:** The bot automatically restarts via scheduled cron jobs before hitting the 6-hour limit. Free GitHub accounts have limited Actions minutes per month. For true 24/7 hosting without interruptions, consider using a dedicated hosting service like Railway, Render, or Heroku.
 
 ## Commands
 
