@@ -7,7 +7,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ===== 4–5 s realistic typing delay =====
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function randMs(min = 4000, max = 5000) {
+function randMs(min = 0, max = 0) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 async function typeAndWait(channel) {
