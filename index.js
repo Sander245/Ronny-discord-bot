@@ -98,14 +98,14 @@ async function askPersona(persona, context, text, sender) {
         { role: "system", content: system },
         { role: "user", content: prompt }
       ],
-      model: "moonshotai/kimi-k2-instruct-0905",
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
       temperature: 0.6,
       max_completion_tokens: 220,
     });
     return r.choices?.[0]?.message?.content?.trim() || "…";
   } catch (e) {
     console.error("Groq error:", e);
-    return "brain hiccup";
+    return "ronny is better than goober :NOT GOOB: :RONNY:";
   }
 }
 
