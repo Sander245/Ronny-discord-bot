@@ -185,7 +185,7 @@ client.on(Events.InteractionCreate, async (ix) => {
       const text = ix.options.getString("text", true);
       const who = ensurePersona(ix.options.getString("who") || "ronny");
       const username = ix.user.displayName || ix.user.username;
-      const context = await getRecentContext(ix.channel);
+      const context = await getRecentContext(ix.channel, 5, ix.user);
       await ix.deferReply({ ephemeral: false });
       await typeAndWait(ix.channel);
       const response = await askPersona(who, context, text, username);
