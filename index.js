@@ -79,19 +79,23 @@ const PERSONAS = {
 };
 
 // ===== Context helpers =====
-async function getRecentContext(channel, limit = 5) {
+// For DMs: store last 5 messages per user
+const dmContextMap = new Map(); // userId -> [{name, content}]
+
+async function getRecentContext(channel, limit = 5, author) {
+  // If DM channel, use local memory
+  if (channel.isDMBased && channel.isDMBased()) {
+    const userId = author.id;
+    const arr = dmContextMap.get(userId) || [];
+    return arr.map(m => `${m.name}: ${m.content}`);
+  }
+  // Otherwise, fetch from API (server)
   try {
-    // Always fetch from API, not just cache
     const msgs = await channel.messages.fetch({ limit, cache: false });
-    console.log(`[DEBUG] getRecentContext: fetched ${msgs.size} messages`);
-    msgs.forEach(m => {
-      console.log(`[DEBUG] Message: author=${m.author.username}, content=${m.content}, created=${m.createdTimestamp}, isBot=${m.author.bot}`);
-    });
     const filtered = Array.from(msgs.values())
       .filter(m => !m.author.bot && m.content)
       .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
       .map(m => `${m.member?.displayName || m.author.username}: ${m.content.slice(0, 300)}`);
-    console.log('[DEBUG] Filtered context lines:', filtered);
     return filtered;
   } catch (e) {
     console.error('[DEBUG] Error fetching recent context:', e);
@@ -152,7 +156,17 @@ client.on(Events.MessageCreate, async (msg) => {
 
     const persona = "ronny";
     const text = msg.content.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "").trim();
-    const context = await getRecentContext(msg.channel);
+
+    // DM context memory logic
+    if (msg.channel.isDMBased && msg.channel.isDMBased()) {
+      const userId = msg.author.id;
+      const arr = dmContextMap.get(userId) || [];
+      arr.push({ name: msg.author.username, content: text });
+      if (arr.length > 5) arr.shift();
+      dmContextMap.set(userId, arr);
+    }
+
+    const context = await getRecentContext(msg.channel, 5, msg.author);
     await typeAndWait(msg.channel);
     const reply = await askPersona(persona, context, text, msg.author.displayName || msg.author.username);
     await msg.reply(reply);
