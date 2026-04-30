@@ -185,6 +185,16 @@ client.on(Events.InteractionCreate, async (ix) => {
       const text = ix.options.getString("text", true);
       const who = ensurePersona(ix.options.getString("who") || "ronny");
       const username = ix.user.displayName || ix.user.username;
+
+      // DM context memory logic for /ask
+      if (ix.channel.isDMBased && ix.channel.isDMBased()) {
+        const userId = ix.user.id;
+        const arr = dmContextMap.get(userId) || [];
+        arr.push({ name: username, content: text });
+        if (arr.length > 5) arr.shift();
+        dmContextMap.set(userId, arr);
+      }
+
       const context = await getRecentContext(ix.channel, 5, ix.user);
       await ix.deferReply({ ephemeral: false });
       await typeAndWait(ix.channel);
