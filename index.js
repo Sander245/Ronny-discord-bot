@@ -101,7 +101,11 @@ function personaName(p) { return ensurePersona(p) === "jonny" ? "Jonny" : "Ronny
 // ===== AI call =====
 async function askPersona(persona, context, text, sender) {
   const system = PERSONAS[persona];
-  const prompt = `${buildContextBlock(context)}${sender}: ${text}\n\nRespond as ${personaName(persona)}. Only @mention the other if it's clearly directed at them.`;
+  const contextBlock = buildContextBlock(context);
+  const prompt = `${contextBlock}${sender}: ${text}\n\nRespond as ${personaName(persona)}. Only @mention the other if it's clearly directed at them.`;
+  // Debug: log the context block and prompt
+  console.log("[DEBUG] Context block sent to AI:\n", contextBlock);
+  console.log("[DEBUG] Full prompt sent to AI:\n", prompt);
   try {
     const r = await groq.chat.completions.create({
       messages: [
