@@ -83,10 +83,16 @@ async function getRecentContext(channel, limit = 5) {
   try {
     // Always fetch from API, not just cache
     const msgs = await channel.messages.fetch({ limit, cache: false });
-    return Array.from(msgs.values())
+    console.log(`[DEBUG] getRecentContext: fetched ${msgs.size} messages`);
+    msgs.forEach(m => {
+      console.log(`[DEBUG] Message: author=${m.author.username}, content=${m.content}, created=${m.createdTimestamp}, isBot=${m.author.bot}`);
+    });
+    const filtered = Array.from(msgs.values())
       .filter(m => !m.author.bot && m.content)
       .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
       .map(m => `${m.member?.displayName || m.author.username}: ${m.content.slice(0, 300)}`);
+    console.log('[DEBUG] Filtered context lines:', filtered);
+    return filtered;
   } catch (e) {
     console.error('[DEBUG] Error fetching recent context:', e);
     return [];
