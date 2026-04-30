@@ -81,12 +81,14 @@ const PERSONAS = {
 // ===== Context helpers =====
 async function getRecentContext(channel, limit = 5) {
   try {
-    const msgs = await channel.messages.fetch({ limit });
+    // Always fetch from API, not just cache
+    const msgs = await channel.messages.fetch({ limit, cache: false });
     return Array.from(msgs.values())
       .filter(m => !m.author.bot && m.content)
       .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-      .map(m => `${m.author.displayName || m.author.username}: ${m.content.slice(0, 300)}`);
-  } catch {
+      .map(m => `${m.member?.displayName || m.author.username}: ${m.content.slice(0, 300)}`);
+  } catch (e) {
+    console.error('[DEBUG] Error fetching recent context:', e);
     return [];
   }
 }
