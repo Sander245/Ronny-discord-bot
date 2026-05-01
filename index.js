@@ -139,6 +139,29 @@ async function askPersona(persona, context, text, sender) {
     return "ronny is better than goober :NOT GOOB: :RONNY:";
   }
 }
+async function shouldUseMemory(userMsg, contextArr) {
+  // Use a very short prompt for fast decision
+  const deciderPrompt = `User message: "${userMsg}"
+Memory: [${contextArr.join(" | ")}]
+Should the AI use the memory to answer this? Reply only "yes" or "no".`;
+  try {
+    const r = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: "You are a helpful assistant that only replies 'yes' or 'no'." },
+        { role: "user", content: deciderPrompt }
+      ],
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      temperature: 0,
+      max_completion_tokens: 3,
+    });
+    const reply = r.choices?.[0]?.message?.content?.trim().toLowerCase();
+    return reply && reply.startsWith("y");
+  } catch (e) {
+    console.error("Decider AI error:", e);
+    // Fallback: don't use memory
+    return false;
+  }
+}
 
 // ===== Discord client =====
 const client = new Client({
