@@ -33,6 +33,14 @@ const commands = [
       { name: 'amount', description: 'Number of pings', type: 4, required: true, min_value: 1, max_value: 50 }
     ],
   },
+  {
+    name: 'clearmem',
+    description: 'Clear your DM memory for Ronny :(',
+    dm_permission: true,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+    options: [],
+  },
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);

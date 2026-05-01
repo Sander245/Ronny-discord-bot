@@ -234,7 +234,7 @@ client.on(Events.InteractionCreate, async (ix) => {
     if (ix.commandName === "clearmem") {
       if (ix.channel.isDMBased && ix.channel.isDMBased()) {
         dmContextMap.set(ix.user.id, []);
-        await ix.reply("Your DM memory has been cleared.");
+        await ix.reply("Memory cleared :(");
       } else {
         await ix.reply({ content: "This command only works in DMs.", ephemeral: true });
       }
