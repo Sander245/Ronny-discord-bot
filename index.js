@@ -113,7 +113,12 @@ function personaName(p) { return ensurePersona(p) === "jonny" ? "Jonny" : "Ronny
 // ===== AI call =====
 async function askPersona(persona, context, text, sender) {
   const system = PERSONAS[persona];
-  const contextBlock = buildContextBlock(context);
+  let contextBlock = "";
+  // Use decider AI to determine if context should be included
+  if (context && context.length) {
+    const useMem = await shouldUseMemory(text, context);
+    if (useMem) contextBlock = buildContextBlock(context);
+  }
   const prompt = `${contextBlock}${sender}: ${text}\n\nRespond as ${personaName(persona)}. Only @mention the other if it's clearly directed at them.`;
   // Debug: log the context block and prompt
   console.log("[DEBUG] Context block sent to AI:\n", contextBlock);
@@ -200,6 +205,16 @@ client.on(Events.InteractionCreate, async (ix) => {
       await typeAndWait(ix.channel);
       const response = await askPersona(who, context, text, username);
       await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
+    }
+
+    // ===== /clearmem =====
+    if (ix.commandName === "clearmem") {
+      if (ix.channel.isDMBased && ix.channel.isDMBased()) {
+        dmContextMap.set(ix.user.id, []);
+        await ix.reply("Your DM memory has been cleared.");
+      } else {
+        await ix.reply({ content: "This command only works in DMs.", ephemeral: true });
+      }
     }
 
     // ===== /spam =====
