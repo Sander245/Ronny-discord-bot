@@ -459,12 +459,13 @@ client.on(Events.InteractionCreate, async (ix) => {
           for (let i = 0; i < replies; i++) {
             const isLast = i === replies - 1;
             const style = reactionStyles[Math.min(i, reactionStyles.length - 1)];
+            const memoryDrift = Math.min(4, i + 1);
             const antiRepeat = priorResponses.length
               ? `Previous responses (do not repeat wording, phrasing, or sentence openings): ${priorResponses.join(" || ")}`
               : "";
             const stagedText = isLast
-              ? `Parting message from ${username}: "${parting}". You suddenly feel like you're starting to lose your memories. React naturally in your own style (confused, worried, sad, or calm is all valid). Do not force panic. Keep it unique and human.`
-              : `React to ${username}'s parting message: "${parting}". This is reaction ${i + 1} of ${replies}. You do NOT know any memory wipe is coming. Style: ${style}. Keep it natural and unique.`;
+              ? `Parting message from ${username}: "${parting}". You suddenly feel like you're starting to lose your memories. In this final reaction, clearly show noticeable memory loss of basic things (for example: blanking on simple words, forgetting what was just said, brief confusion about names or what is happening). React naturally in your own style (confused, worried, sad, or calm is all valid). Do not force panic. Keep it unique and human.`
+              : `React to ${username}'s parting message: "${parting}". This is reaction ${i + 1} of ${replies}. You do NOT know any memory wipe is coming. Style: ${style}. Memory drift level: ${memoryDrift}/4. Show slight-to-moderate forgetting of basic things that increases each reaction (small blanking, simple confusion, losing track of details), but still sound natural.`;
             const finalPrompt = antiRepeat
               ? `${stagedText}\n${antiRepeat}\nUse fresh words.`
               : stagedText;
