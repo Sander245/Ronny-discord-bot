@@ -148,6 +148,43 @@ function getGlobalMemoryLinesForUser(userId) {
   return lines;
 }
 
+async function maybePruneGlobalMemoryWithAI(author, userMsg) {
+  const userId = author?.id;
+  if (!userId || !userMsg) return;
+  const userMem = globalMemory.users.get(userId);
+  if (!userMem || !userMem.notes.length) return;
+
+  const notes = userMem.notes.slice(-8);
+  const prunePrompt = `Latest user message: "${String(userMsg).slice(0, 350)}"
+Stored notes:
+${notes.map((n, i) => `${i + 1}. ${n}`).join("\n")}
+
+Should one stored note be removed because it is outdated, contradicted, or no longer useful?
+Reply with only one number:
+0 = keep all
+1-${notes.length} = remove that note.`;
+
+  try {
+    const r = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: "You are a memory pruning assistant. Reply with only one number." },
+        { role: "user", content: prunePrompt }
+      ],
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      temperature: 0,
+      max_completion_tokens: 6,
+    });
+    const raw = r.choices?.[0]?.message?.content?.trim() || "0";
+    const idx = Number.parseInt(raw, 10);
+    if (!Number.isInteger(idx) || idx <= 0 || idx > notes.length) return;
+    const target = notes[idx - 1];
+    const realIndex = userMem.notes.lastIndexOf(target);
+    if (realIndex >= 0) userMem.notes.splice(realIndex, 1);
+  } catch (e) {
+    console.error("Global memory prune error:", e);
+  }
+}
+
 function maybeStoreGlobalMemory(author, text, botReply) {
   const userId = author?.id;
   const name = author?.globalName || author?.username || "user";
@@ -336,6 +373,7 @@ client.on(Events.MessageCreate, async (msg) => {
     const reply = await askPersona(persona, context, text, senderName, msg.channel, msg.author);
     await msg.reply(reply);
     if (!msg.guild) pushDmMemory(msg.author.id, personaName(persona), reply);
+    await maybePruneGlobalMemoryWithAI(msg.author, text);
     maybeStoreGlobalMemory(msg.author, text, reply);
   } catch (e) {
     console.error("message handler:", e);
@@ -364,7 +402,31 @@ client.on(Events.InteractionCreate, async (ix) => {
       const response = await askPersona(who, context, text, username, ix.channel, ix.user);
       await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
       if (!ix.inGuild()) pushDmMemory(ix.user.id, personaName(who), response);
+      await maybePruneGlobalMemoryWithAI(ix.user, text);
       maybeStoreGlobalMemory(ix.user, text, response);
+    }
+
+    // ===== /viewmem =====
+    if (ix.commandName === "viewmem") {
+      const username = ix.user.globalName || ix.user.username;
+      const useAi = ix.options.getBoolean("ai") ?? true;
+      const who = ensurePersona(ix.options.getString("who") || "ronny");
+      const lines = getGlobalMemoryLinesForUser(ix.user.id);
+
+      if (!lines.length) {
+        await ix.reply({ content: "No long-term memory saved for you yet.", ephemeral: true });
+        return;
+      }
+
+      if (!useAi) {
+        await ix.reply({ content: `Long-term memory:\n- ${lines.join("\n- ")}`, ephemeral: true });
+        return;
+      }
+
+      await ix.deferReply({ ephemeral: true });
+      const summaryPrompt = `Summarize your long-term memory about ${username} based only on this list:\n${lines.map(l => `- ${l}`).join("\n")}\n\nKeep it concise and natural.`;
+      const summary = await askPersona(who, [], summaryPrompt, username, ix.channel, ix.user);
+      await ix.editReply(summary || "No long-term memory saved.");
     }
 
     // ===== /clearmem =====
@@ -373,19 +435,18 @@ client.on(Events.InteractionCreate, async (ix) => {
         const username = ix.user.globalName || ix.user.username;
         const parting = (ix.options.getString("parting") || "").trim();
         const who = ensurePersona(ix.options.getString("who") || "ronny");
+        const clearLongTerm = ix.options.getBoolean("clear_long_term") || false;
         const requestedReplies = ix.options.getInteger("replies");
         const replies = parting
           ? (requestedReplies == null
             ? autoReplyCountForParting(parting)
             : Math.max(1, Math.min(4, requestedReplies)))
           : Math.max(1, Math.min(4, requestedReplies || 1));
-        const preservedAfterClear = [];
 
         await ix.deferReply({ ephemeral: false });
 
         if (parting) {
           pushDmMemory(ix.user.id, username, parting);
-          preservedAfterClear.push({ name: username, content: parting });
 
           const priorResponses = [];
           const reactionStyles = [
@@ -413,18 +474,12 @@ client.on(Events.InteractionCreate, async (ix) => {
             const response = await askPersona(who, context, finalPrompt, username, ix.channel, ix.user);
             await ix.followUp(response);
             pushDmMemory(ix.user.id, personaName(who), response);
-            preservedAfterClear.push({ name: personaName(who), content: response });
             priorResponses.push(response);
           }
         }
 
         dmContextMap.set(ix.user.id, []);
-        clearGlobalMemoryForUser(ix.user.id);
-        if (preservedAfterClear.length) {
-          for (const entry of preservedAfterClear) {
-            pushDmMemory(ix.user.id, entry.name, entry.content);
-          }
-        }
+        if (clearLongTerm) clearGlobalMemoryForUser(ix.user.id);
         await typeAndWait(ix.channel, 3000, 5000);
         await ix.followUp("Memory cleared :(");
       } else {

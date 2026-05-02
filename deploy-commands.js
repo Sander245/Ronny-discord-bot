@@ -63,6 +63,37 @@ const commands = [
           { name: 'Ronny', value: 'ronny' },
           { name: 'Jonny', value: 'jonny' },
         ]
+      },
+      {
+        name: 'clear_long_term',
+        description: 'Also clear your long-term memory entries',
+        type: 5,
+        required: false,
+      }
+    ],
+  },
+  {
+    name: 'viewmem',
+    description: 'View your long-term memory (raw or AI summary).',
+    dm_permission: true,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+    options: [
+      {
+        name: 'ai',
+        description: 'Use AI summary (default true)',
+        type: 5,
+        required: false,
+      },
+      {
+        name: 'who',
+        description: 'Who should summarize memory?',
+        type: 3,
+        required: false,
+        choices: [
+          { name: 'Ronny', value: 'ronny' },
+          { name: 'Jonny', value: 'jonny' },
+        ]
       }
     ],
   },
