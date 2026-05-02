@@ -126,6 +126,24 @@ function autoReplyCountForParting(parting) {
   if (len <= 140) return 3;
   return 4;
 }
+function splitReactionBatch(raw, expectedCount) {
+  const text = String(raw || "").replace(/\r/g, "").trim();
+  if (!text) return Array(expectedCount).fill("...");
+
+  let parts = text.includes("|||")
+    ? text.split("|||")
+    : text.split(/\n+/);
+
+  parts = parts
+    .map(p => p.trim())
+    .map(p => p.replace(/^\d+\s*[\)\.:-]\s*/, ""))
+    .map(p => p.replace(/^[-*]\s*/, ""))
+    .filter(Boolean);
+
+  if (parts.length > expectedCount) parts = parts.slice(0, expectedCount);
+  while (parts.length < expectedCount) parts.push(parts[parts.length - 1] || "...");
+  return parts;
+}
 
 // ===== AI call =====
 async function askPersona(persona, context, text, sender, channel, author) {
@@ -268,15 +286,23 @@ client.on(Events.InteractionCreate, async (ix) => {
           pushDmMemory(ix.user.id, username, parting);
           preservedAfterClear.push({ name: username, content: parting });
 
-          for (let i = 0; i < replies; i++) {
-            const isLast = i === replies - 1;
-            const stagedText = isLast
-              ? `Final reaction before wipe: react to this message from ${username}: "${parting}". Be clearly shocked and surprised because your memory is about to be erased right after this response. All caps and very emotional.`
-              : `React naturally to this message from ${username}: "${parting}". This is reaction ${i + 1} of ${replies}.`;
+          const context = await getRecentContext(ix.channel, 5, ix.user);
+          const batchPrompt = `Generate exactly ${replies} separate reactions as ${personaName(who)}.
+Output format must be exactly: reaction1 ||| reaction2 ||| ... (no numbering, no extra text).
 
-            const context = await getRecentContext(ix.channel, 5, ix.user);
+Rules:
+- Reactions 1 to ${Math.max(1, replies - 1)} respond naturally to ${username}'s parting message: "${parting}".
+- Those early reactions should NOT know memory wipe is coming.
+- Final reaction (${replies}) is to a sudden new message from ${username}: "yo im clearing your memory right now".
+- Final reaction should be shocked/confused like "wait what are you doing?" and emotional.
+- Keep every reaction unique; do not repeat wording or sentence openings.
+- Keep each reaction under 500 characters.`;
+          const batchRaw = await askPersona(who, context, batchPrompt, username, ix.channel, ix.user);
+          const reactions = splitReactionBatch(batchRaw, replies);
+
+          for (let i = 0; i < reactions.length; i++) {
             if (i > 0) await typeAndWait(ix.channel, 3000, 5000);
-            const response = await askPersona(who, context, stagedText, username, ix.channel, ix.user);
+            const response = reactions[i];
             await ix.followUp(response);
             pushDmMemory(ix.user.id, personaName(who), response);
             preservedAfterClear.push({ name: personaName(who), content: response });
