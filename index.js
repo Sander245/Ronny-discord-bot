@@ -447,6 +447,7 @@ client.on(Events.InteractionCreate, async (ix) => {
 
         if (parting) {
           pushDmMemory(ix.user.id, username, parting);
+          await ix.followUp(`**${username}:** ${parting}`);
 
           const priorResponses = [];
           const reactionStyles = [
