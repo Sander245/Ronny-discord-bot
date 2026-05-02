@@ -11,7 +11,7 @@ function randMs(min = 0, max = 0) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 async function typeAndWait(channel) {
-  try { await channel.sendTyping(); } catch {}
+  try { await channel?.sendTyping?.(); } catch {}
   await sleep(randMs());
 }
 const randomifier = Math.floor(Math.random() * 100);
@@ -85,9 +85,10 @@ const PERSONAS = {
 const dmContextMap = new Map(); // userId -> [{name, content}]
 
 async function getRecentContext(channel, limit = 5, author) {
-  // If DM channel, use local memory
-  if (channel.isDMBased && channel.isDMBased()) {
-    const userId = author.id;
+  // If we have no channel object or it's a DM, use local memory
+  if (!channel || (channel.isDMBased && channel.isDMBased())) {
+    const userId = author?.id;
+    if (!userId) return [];
     const arr = dmContextMap.get(userId) || [];
     return arr.map(m => `${m.name}: ${m.content}`);
   }
@@ -186,9 +187,10 @@ client.on(Events.MessageCreate, async (msg) => {
 
     const persona = "ronny";
     const text = msg.content.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "").trim();
+    if (!text) return;
 
     // DM context memory logic
-    if (msg.channel.isDMBased && msg.channel.isDMBased()) {
+    if (!msg.guild) {
       const userId = msg.author.id;
       const arr = dmContextMap.get(userId) || [];
       arr.push({ name: msg.author.username, content: text });
@@ -198,7 +200,8 @@ client.on(Events.MessageCreate, async (msg) => {
 
     const context = await getRecentContext(msg.channel, 5, msg.author);
     await typeAndWait(msg.channel);
-    const reply = await askPersona(persona, context, text, msg.author.displayName || msg.author.username);
+    const senderName = msg.member?.displayName || msg.author.globalName || msg.author.username;
+    const reply = await askPersona(persona, context, text, senderName);
     await msg.reply(reply);
   } catch (e) {
     console.error("message handler:", e);
@@ -214,10 +217,10 @@ client.on(Events.InteractionCreate, async (ix) => {
     if (ix.commandName === "ask") {
       const text = ix.options.getString("text", true);
       const who = ensurePersona(ix.options.getString("who") || "ronny");
-      const username = ix.user.displayName || ix.user.username;
+      const username = ix.member?.displayName || ix.user.globalName || ix.user.username;
 
       // DM context memory logic for /ask
-      if (ix.channel.isDMBased && ix.channel.isDMBased()) {
+      if (!ix.inGuild()) {
         const userId = ix.user.id;
         const arr = dmContextMap.get(userId) || [];
         arr.push({ name: username, content: text });
@@ -225,8 +228,8 @@ client.on(Events.InteractionCreate, async (ix) => {
         dmContextMap.set(userId, arr);
       }
 
-      const context = await getRecentContext(ix.channel, 5, ix.user);
       await ix.deferReply({ ephemeral: false });
+      const context = await getRecentContext(ix.channel, 5, ix.user);
       await typeAndWait(ix.channel);
       const response = await askPersona(who, context, text, username);
       await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
@@ -234,7 +237,7 @@ client.on(Events.InteractionCreate, async (ix) => {
 
     // ===== /clearmem =====
     if (ix.commandName === "clearmem") {
-      if (ix.channel.isDMBased && ix.channel.isDMBased()) {
+      if (!ix.inGuild()) {
         dmContextMap.set(ix.user.id, []);
         await ix.reply("Memory cleared :(");
       } else {
@@ -245,19 +248,36 @@ client.on(Events.InteractionCreate, async (ix) => {
     // ===== /spam =====
     if (ix.commandName === "spam") {
       if (ix.replied || ix.deferred) return;
-      
+
       const target = ix.options.getUser("who", true);
-      const amount = ix.options.getInteger("amount", true);
-      
+      const amount = Math.max(1, Math.min(20, ix.options.getInteger("amount", true)));
+
+      if (!ix.channel) {
+        await ix.reply({ content: "Can't access this channel.", ephemeral: true });
+        return;
+      }
+
       await ix.reply(`Spamming ${amount} times...`);
-      
+
       for (let i = 0; i < amount; i++) {
-        await ix.channel.send(`<@${target.id}>`);
+        try {
+          await ix.channel.send(`<@${target.id}>`);
+        } catch (err) {
+          console.error("spam send error:", err);
+          break;
+        }
         await sleep(350);
       }
     }
   } catch (e) {
     console.error(`Command error:`, e);
+    try {
+      if (ix.deferred && !ix.replied) {
+        await ix.editReply("something broke :(");
+      } else if (!ix.replied) {
+        await ix.reply({ content: "something broke :(", ephemeral: true });
+      }
+    } catch {}
   }
 });
 
