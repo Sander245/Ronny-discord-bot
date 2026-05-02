@@ -81,8 +81,16 @@ const PERSONAS = {
 };
 
 // ===== Context helpers =====
-// For DMs: store last 5 messages per user
+// For DMs: store up to last 15 messages per user
 const dmContextMap = new Map(); // userId -> [{name, content}]
+
+function pushDmMemory(userId, name, content, maxSize = 15) {
+  if (!userId || !content) return;
+  const arr = dmContextMap.get(userId) || [];
+  arr.push({ name, content: String(content).slice(0, 500) });
+  while (arr.length > maxSize) arr.shift();
+  dmContextMap.set(userId, arr);
+}
 
 async function getRecentContext(channel, limit = 5, author) {
   // If we have no channel object or it's a DM, use local memory
@@ -90,7 +98,7 @@ async function getRecentContext(channel, limit = 5, author) {
     const userId = author?.id;
     if (!userId) return [];
     const arr = dmContextMap.get(userId) || [];
-    return arr.map(m => `${m.name}: ${m.content}`);
+    return arr.slice(-limit).map(m => `${m.name}: ${m.content}`);
   }
   // Otherwise, fetch from API (server)
   try {
@@ -105,23 +113,28 @@ async function getRecentContext(channel, limit = 5, author) {
     return [];
   }
 }
-function buildContextBlock(lines) {
+function buildContextBlock(lines, label = "Context") {
   if (!lines.length) return "";
-  return `Context (last ${lines.length}):\n${lines.map(l => "- " + l).join("\n")}\n\n`;
+  return `${label} (last ${lines.length}):\n${lines.map(l => "- " + l).join("\n")}\n\n`;
 }
 
 function ensurePersona(p) { return p && p.toLowerCase() === "jonny" ? "jonny" : "ronny"; }
 function personaName(p) { return ensurePersona(p) === "jonny" ? "Jonny" : "Ronny"; }
 
 // ===== AI call =====
-async function askPersona(persona, context, text, sender) {
+async function askPersona(persona, context, text, sender, channel, author) {
   const system = PERSONAS[persona];
-  let contextBlock = "";
-  // Use decider AI to determine if context should be included
+  let contextBlock = buildContextBlock(context || [], "Recent memory");
+
+  // If needed, recall a wider context window (latest 15 messages)
   if (context && context.length) {
-    const useMem = await shouldUseMemory(text, context);
-    if (useMem) contextBlock = buildContextBlock(context);
+    const needsRecall = await shouldRecallMoreContext(text, context);
+    if (needsRecall) {
+      const recalled = await getRecentContext(channel, 15, author);
+      contextBlock += buildContextBlock(recalled, "Recalled memory");
+    }
   }
+
   const prompt = `${contextBlock}${sender}: ${text}\n\nRespond as ${personaName(persona)}. Only @mention the other if it's clearly directed at them.`;
   // Debug: log the context block and prompt
   console.log("[DEBUG] Context block sent to AI:\n", contextBlock);
@@ -142,15 +155,15 @@ async function askPersona(persona, context, text, sender) {
     return "ronny is better than goober :NOT GOOB: :RONNY:";
   }
 }
-async function shouldUseMemory(userMsg, contextArr) {
-  // Use a very short prompt for fast decision
+async function shouldRecallMoreContext(userMsg, contextArr) {
+  // Decide if 5 messages are enough or if we should recall a wider 15-message window
   const deciderPrompt = `User message: "${userMsg}"
-Memory: [${contextArr.join(" | ")}]
-Should the AI use the memory to answer this? Reply only "yes" or "no".`;
+Recent memory (5): [${contextArr.join(" | ")}]
+Should we recall the latest 15 messages for better context? Reply only "yes" or "no".`;
   try {
     const r = await groq.chat.completions.create({
       messages: [
-        { role: "system", content: "You are a helpful assistant that only replies 'yes' or 'no'." },
+        { role: "system", content: "You are a memory-routing assistant. Reply only 'yes' or 'no'. Reply 'yes' when the user message likely needs extra context, references prior chat, is ambiguous, or asks follow-ups the bot may not know from only 5 messages." },
         { role: "user", content: deciderPrompt }
       ],
       model: "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -189,20 +202,17 @@ client.on(Events.MessageCreate, async (msg) => {
     const text = msg.content.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "").trim();
     if (!text) return;
 
-    // DM context memory logic
+    // DM context memory logic (retain latest 15)
     if (!msg.guild) {
-      const userId = msg.author.id;
-      const arr = dmContextMap.get(userId) || [];
-      arr.push({ name: msg.author.username, content: text });
-      if (arr.length > 5) arr.shift();
-      dmContextMap.set(userId, arr);
+      pushDmMemory(msg.author.id, msg.author.username, text);
     }
 
     const context = await getRecentContext(msg.channel, 5, msg.author);
     await typeAndWait(msg.channel);
     const senderName = msg.member?.displayName || msg.author.globalName || msg.author.username;
-    const reply = await askPersona(persona, context, text, senderName);
+    const reply = await askPersona(persona, context, text, senderName, msg.channel, msg.author);
     await msg.reply(reply);
+    if (!msg.guild) pushDmMemory(msg.author.id, personaName(persona), reply);
   } catch (e) {
     console.error("message handler:", e);
   }
@@ -219,27 +229,48 @@ client.on(Events.InteractionCreate, async (ix) => {
       const who = ensurePersona(ix.options.getString("who") || "ronny");
       const username = ix.member?.displayName || ix.user.globalName || ix.user.username;
 
-      // DM context memory logic for /ask
+      // DM context memory logic for /ask (retain latest 15)
       if (!ix.inGuild()) {
-        const userId = ix.user.id;
-        const arr = dmContextMap.get(userId) || [];
-        arr.push({ name: username, content: text });
-        if (arr.length > 5) arr.shift();
-        dmContextMap.set(userId, arr);
+        pushDmMemory(ix.user.id, username, text);
       }
 
       await ix.deferReply({ ephemeral: false });
       const context = await getRecentContext(ix.channel, 5, ix.user);
       await typeAndWait(ix.channel);
-      const response = await askPersona(who, context, text, username);
+      const response = await askPersona(who, context, text, username, ix.channel, ix.user);
       await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
+      if (!ix.inGuild()) pushDmMemory(ix.user.id, personaName(who), response);
     }
 
     // ===== /clearmem =====
     if (ix.commandName === "clearmem") {
       if (!ix.inGuild()) {
+        const username = ix.user.globalName || ix.user.username;
+        const parting = (ix.options.getString("parting") || "").trim();
+        const who = ensurePersona(ix.options.getString("who") || "ronny");
+        const replies = Math.max(1, Math.min(4, ix.options.getInteger("replies") || 1));
+
+        await ix.deferReply({ ephemeral: false });
+
+        if (parting) {
+          pushDmMemory(ix.user.id, username, parting);
+
+          for (let i = 0; i < replies; i++) {
+            const isLast = i === replies - 1;
+            const stagedText = isLast
+              ? `Final reaction before wipe: react to this message from ${username}: "${parting}". Right after this response your memory will be erased.`
+              : `React naturally to this message from ${username}: "${parting}". This is reaction ${i + 1} of ${replies}.`;
+
+            const context = await getRecentContext(ix.channel, 5, ix.user);
+            await typeAndWait(ix.channel);
+            const response = await askPersona(who, context, stagedText, username, ix.channel, ix.user);
+            await ix.followUp(response);
+            pushDmMemory(ix.user.id, personaName(who), response);
+          }
+        }
+
         dmContextMap.set(ix.user.id, []);
-        await ix.reply("Memory cleared :(");
+        await ix.editReply("Memory cleared :(");
       } else {
         await ix.reply({ content: "This command only works in DMs.", ephemeral: true });
       }

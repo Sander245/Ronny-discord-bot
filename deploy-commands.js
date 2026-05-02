@@ -35,11 +35,36 @@ const commands = [
   },
   {
     name: 'clearmem',
-    description: 'Clear your DM memory for Ronny :(',
+    description: 'Clear DM memory, optionally with pre-wipe reaction messages.',
     dm_permission: true,
     integration_types: [0, 1],
     contexts: [0, 1, 2],
-    options: [],
+    options: [
+      {
+        name: 'parting',
+        description: 'Optional parting message Ronny/Jonny should react to before wipe',
+        type: 3,
+        required: false,
+      },
+      {
+        name: 'replies',
+        description: 'How many pre-wipe reaction messages (1-4)',
+        type: 4,
+        required: false,
+        min_value: 1,
+        max_value: 4,
+      },
+      {
+        name: 'who',
+        description: 'Who reacts before memory clear?',
+        type: 3,
+        required: false,
+        choices: [
+          { name: 'Ronny', value: 'ronny' },
+          { name: 'Jonny', value: 'jonny' },
+        ]
+      }
+    ],
   },
 ];
 
