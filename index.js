@@ -5,9 +5,9 @@ const { Groq } = require("groq-sdk");
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// ===== 4–5 s realistic typing delay =====
+// ===== 3–5 s realistic typing delay =====
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function randMs(min = 0, max = 0) {
+function randMs(min = 3000, max = 5000) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 async function typeAndWait(channel) {
@@ -258,7 +258,7 @@ client.on(Events.InteractionCreate, async (ix) => {
           for (let i = 0; i < replies; i++) {
             const isLast = i === replies - 1;
             const stagedText = isLast
-              ? `Final reaction before wipe: react to this message from ${username}: "${parting}". Right after this response your memory will be erased.`
+              ? `Final reaction before wipe: react to this message from ${username}: "${parting}". Be clearly shocked and surprised because your memory is about to be erased right after this response. All caps and very emotional.`
               : `React naturally to this message from ${username}: "${parting}". This is reaction ${i + 1} of ${replies}.`;
 
             const context = await getRecentContext(ix.channel, 5, ix.user);
@@ -270,7 +270,9 @@ client.on(Events.InteractionCreate, async (ix) => {
         }
 
         dmContextMap.set(ix.user.id, []);
-        await ix.editReply("Memory cleared :(");
+        await sleep(randMs(3000, 5000));
+        await ix.followUp("Memory cleared :(");
+        try { await ix.deleteReply(); } catch {}
       } else {
         await ix.reply({ content: "This command only works in DMs.", ephemeral: true });
       }
