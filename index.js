@@ -120,6 +120,12 @@ function buildContextBlock(lines, label = "Context") {
 
 function ensurePersona(p) { return p && p.toLowerCase() === "jonny" ? "jonny" : "ronny"; }
 function personaName(p) { return ensurePersona(p) === "jonny" ? "Jonny" : "Ronny"; }
+function autoReplyCountForParting(parting) {
+  const len = (parting || "").trim().length;
+  if (len <= 40) return 2;
+  if (len <= 140) return 3;
+  return 4;
+}
 
 // ===== AI call =====
 async function askPersona(persona, context, text, sender, channel, author) {
@@ -248,12 +254,19 @@ client.on(Events.InteractionCreate, async (ix) => {
         const username = ix.user.globalName || ix.user.username;
         const parting = (ix.options.getString("parting") || "").trim();
         const who = ensurePersona(ix.options.getString("who") || "ronny");
-        const replies = Math.max(1, Math.min(4, ix.options.getInteger("replies") || 1));
+        const requestedReplies = ix.options.getInteger("replies");
+        const replies = parting
+          ? (requestedReplies == null
+            ? autoReplyCountForParting(parting)
+            : Math.max(1, Math.min(4, requestedReplies)))
+          : Math.max(1, Math.min(4, requestedReplies || 1));
+        const preservedAfterClear = [];
 
         await ix.deferReply({ ephemeral: false });
 
         if (parting) {
           pushDmMemory(ix.user.id, username, parting);
+          preservedAfterClear.push({ name: username, content: parting });
 
           for (let i = 0; i < replies; i++) {
             const isLast = i === replies - 1;
@@ -262,14 +275,20 @@ client.on(Events.InteractionCreate, async (ix) => {
               : `React naturally to this message from ${username}: "${parting}". This is reaction ${i + 1} of ${replies}.`;
 
             const context = await getRecentContext(ix.channel, 5, ix.user);
-            await typeAndWait(ix.channel, 3000, 5000);
+            if (i > 0) await typeAndWait(ix.channel, 3000, 5000);
             const response = await askPersona(who, context, stagedText, username, ix.channel, ix.user);
             await ix.followUp(response);
             pushDmMemory(ix.user.id, personaName(who), response);
+            preservedAfterClear.push({ name: personaName(who), content: response });
           }
         }
 
         dmContextMap.set(ix.user.id, []);
+        if (preservedAfterClear.length) {
+          for (const entry of preservedAfterClear) {
+            pushDmMemory(ix.user.id, entry.name, entry.content);
+          }
+        }
         await typeAndWait(ix.channel, 3000, 5000);
         await ix.followUp("Memory cleared :(");
         try { await ix.deleteReply(); } catch {}
