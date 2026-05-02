@@ -447,14 +447,13 @@ client.on(Events.InteractionCreate, async (ix) => {
 
         if (parting) {
           pushDmMemory(ix.user.id, username, parting);
-          await ix.followUp(`**${username}:** ${parting}`);
 
           const priorResponses = [];
           const reactionStyles = [
             "short raw emotional response",
             "different wording with a quick follow-up thought",
-            "more intense but still unique",
-            "full panic energy, fragmented and urgent"
+            "more reflective but still unique",
+            "emotional but natural and non-repetitive"
           ];
 
           for (let i = 0; i < replies; i++) {
@@ -464,7 +463,7 @@ client.on(Events.InteractionCreate, async (ix) => {
               ? `Previous responses (do not repeat wording, phrasing, or sentence openings): ${priorResponses.join(" || ")}`
               : "";
             const stagedText = isLast
-              ? `A sudden NEW message from ${username}: "yo im clearing your memory right now". You did not know this was happening. React with extreme shock and panic like you just found out right now. Sound urgent, confused, and emotional (examples: "WAIT WHAT", "NO NO NO", "WHAT ARE YOU DOING"). Keep it natural and unique, not robotic.`
+              ? `Parting message from ${username}: "${parting}". You suddenly feel like you're starting to lose your memories. React naturally in your own style (confused, worried, sad, or calm is all valid). Do not force panic. Keep it unique and human.`
               : `React to ${username}'s parting message: "${parting}". This is reaction ${i + 1} of ${replies}. You do NOT know any memory wipe is coming. Style: ${style}. Keep it natural and unique.`;
             const finalPrompt = antiRepeat
               ? `${stagedText}\n${antiRepeat}\nUse fresh words.`
@@ -473,7 +472,12 @@ client.on(Events.InteractionCreate, async (ix) => {
             const context = await getRecentContext(ix.channel, 5, ix.user);
             if (i > 0) await typeAndWait(ix.channel, 3000, 5000);
             const response = await askPersona(who, context, finalPrompt, username, ix.channel, ix.user);
-            await ix.followUp(response);
+            const labeledResponse = `**${personaName(who)}:** ${response}`;
+            if (i === 0) {
+              await ix.followUp(`**${username}:** ${parting}\n${labeledResponse}`);
+            } else {
+              await ix.followUp(labeledResponse);
+            }
             pushDmMemory(ix.user.id, personaName(who), response);
             priorResponses.push(response);
           }
