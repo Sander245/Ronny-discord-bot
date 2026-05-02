@@ -5,14 +5,14 @@ const { Groq } = require("groq-sdk");
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// ===== 3–5 s realistic typing delay =====
+// ===== Typing delay helper =====
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function randMs(min = 3000, max = 5000) {
+function randMs(min = 0, max = 0) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-async function typeAndWait(channel) {
+async function typeAndWait(channel, min = 0, max = 0) {
   try { await channel?.sendTyping?.(); } catch {}
-  await sleep(randMs());
+  await sleep(randMs(min, max));
 }
 const randomifier = Math.floor(Math.random() * 100);
 // ===== Full original BASE_PROMPT =====
@@ -262,7 +262,7 @@ client.on(Events.InteractionCreate, async (ix) => {
               : `React naturally to this message from ${username}: "${parting}". This is reaction ${i + 1} of ${replies}.`;
 
             const context = await getRecentContext(ix.channel, 5, ix.user);
-            await typeAndWait(ix.channel);
+            await typeAndWait(ix.channel, 3000, 5000);
             const response = await askPersona(who, context, stagedText, username, ix.channel, ix.user);
             await ix.followUp(response);
             pushDmMemory(ix.user.id, personaName(who), response);
@@ -270,7 +270,7 @@ client.on(Events.InteractionCreate, async (ix) => {
         }
 
         dmContextMap.set(ix.user.id, []);
-        await sleep(randMs(3000, 5000));
+        await typeAndWait(ix.channel, 3000, 5000);
         await ix.followUp("Memory cleared :(");
         try { await ix.deleteReply(); } catch {}
       } else {
