@@ -66,6 +66,14 @@ const commands = [
       }
     ],
   },
+  {
+    name: 'fix',
+    description: 'Admin memory reset command.',
+    dm_permission: true,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+    options: [],
+  },
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);

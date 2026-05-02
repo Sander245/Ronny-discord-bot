@@ -83,6 +83,121 @@ const PERSONAS = {
 // ===== Context helpers =====
 // For DMs: store up to last 15 messages per user
 const dmContextMap = new Map(); // userId -> [{name, content}]
+const globalMemory = {
+  general: [], // [{ note }]
+  users: new Map(), // userId -> { name, feeling, notes: [] }
+};
+
+function getOrCreateGlobalUserMemory(userId, fallbackName = "user") {
+  const existing = globalMemory.users.get(userId);
+  if (existing) return existing;
+  const created = { name: fallbackName, feeling: "neutral", notes: [] };
+  globalMemory.users.set(userId, created);
+  return created;
+}
+
+function pushGlobalUserNote(userId, name, note, maxSize = 20) {
+  if (!userId || !note) return;
+  const mem = getOrCreateGlobalUserMemory(userId, name);
+  mem.name = name || mem.name;
+  const clean = String(note).trim().slice(0, 260);
+  if (!clean) return;
+  if (mem.notes[mem.notes.length - 1] === clean) return;
+  mem.notes.push(clean);
+  while (mem.notes.length > maxSize) mem.notes.shift();
+}
+
+function setGlobalUserFeeling(userId, name, feeling) {
+  if (!userId || !feeling) return;
+  const mem = getOrCreateGlobalUserMemory(userId, name);
+  mem.name = name || mem.name;
+  mem.feeling = feeling;
+}
+
+function pushGlobalGeneralNote(note, maxSize = 30) {
+  const clean = String(note || "").trim().slice(0, 260);
+  if (!clean) return;
+  const prev = globalMemory.general[globalMemory.general.length - 1]?.note;
+  if (prev === clean) return;
+  globalMemory.general.push({ note: clean });
+  while (globalMemory.general.length > maxSize) globalMemory.general.shift();
+}
+
+function clearGlobalMemoryForUser(userId) {
+  if (!userId) return;
+  globalMemory.users.delete(userId);
+}
+
+function clearAllGlobalMemory() {
+  globalMemory.general = [];
+  globalMemory.users.clear();
+}
+
+function getGlobalMemoryLinesForUser(userId) {
+  const lines = [];
+  const userMem = userId ? globalMemory.users.get(userId) : null;
+  if (userMem) {
+    lines.push(`Feeling about ${userMem.name}: ${userMem.feeling}`);
+    for (const note of userMem.notes.slice(-6)) {
+      lines.push(`User memory: ${note}`);
+    }
+  }
+  for (const item of globalMemory.general.slice(-4)) {
+    lines.push(`Global memory: ${item.note}`);
+  }
+  return lines;
+}
+
+function maybeStoreGlobalMemory(author, text, botReply) {
+  const userId = author?.id;
+  const name = author?.globalName || author?.username || "user";
+  if (!userId || !text) return;
+
+  const raw = String(text).trim();
+  const lower = raw.toLowerCase();
+
+  if (/(remember|dont forget|don't forget|important|keep this)/i.test(raw)) {
+    pushGlobalUserNote(userId, name, `Important from user: ${raw}`);
+  }
+
+  const nameMatch = raw.match(/\bmy name is\s+([^.,!?\n]{1,40})/i);
+  if (nameMatch) {
+    pushGlobalUserNote(userId, name, `Preferred name: ${nameMatch[1].trim()}`);
+  }
+
+  const likeMatch = raw.match(/\b(i like|i love|my favorite is)\s+([^.,!?\n]{1,80})/i);
+  if (likeMatch) {
+    pushGlobalUserNote(userId, name, `Likes: ${likeMatch[2].trim()}`);
+  }
+
+  const dislikeMatch = raw.match(/\b(i hate|i dont like|i don't like)\s+([^.,!?\n]{1,80})/i);
+  if (dislikeMatch) {
+    pushGlobalUserNote(userId, name, `Dislikes: ${dislikeMatch[2].trim()}`);
+  }
+
+  if (/(for everyone|global note|all users|everyone should know)/i.test(raw)) {
+    pushGlobalGeneralNote(raw);
+  }
+
+  if (/(clanker|shut up|stupid|idiot|dumb)/i.test(lower)) {
+    setGlobalUserFeeling(userId, name, "annoyed");
+  } else if (/(sorry|my bad|apolog)/i.test(lower)) {
+    setGlobalUserFeeling(userId, name, "calmer");
+  } else if (/(thanks|thank you|good bot|love you)/i.test(lower)) {
+    setGlobalUserFeeling(userId, name, "positive");
+  }
+
+  if (botReply && /wait what|no no no|what are you doing|panic|confused/i.test(String(botReply).toLowerCase())) {
+    setGlobalUserFeeling(userId, name, "shocked");
+  }
+}
+
+function isGlobalMemoryAdmin(user) {
+  const allowed = ["sandothesigma_67061"];
+  const username = String(user?.username || "").toLowerCase();
+  const globalName = String(user?.globalName || "").toLowerCase();
+  return allowed.includes(username) || allowed.includes(globalName);
+}
 
 function pushDmMemory(userId, name, content, maxSize = 15) {
   if (!userId || !content) return;
@@ -131,6 +246,8 @@ function autoReplyCountForParting(parting) {
 async function askPersona(persona, context, text, sender, channel, author) {
   const system = PERSONAS[persona];
   let contextBlock = buildContextBlock(context || [], "Recent memory");
+  const globalLines = getGlobalMemoryLinesForUser(author?.id);
+  contextBlock += buildContextBlock(globalLines, "Long-term memory");
 
   // If needed, recall a wider context window (latest 15 messages)
   if (context && context.length) {
@@ -219,6 +336,7 @@ client.on(Events.MessageCreate, async (msg) => {
     const reply = await askPersona(persona, context, text, senderName, msg.channel, msg.author);
     await msg.reply(reply);
     if (!msg.guild) pushDmMemory(msg.author.id, personaName(persona), reply);
+    maybeStoreGlobalMemory(msg.author, text, reply);
   } catch (e) {
     console.error("message handler:", e);
   }
@@ -246,6 +364,7 @@ client.on(Events.InteractionCreate, async (ix) => {
       const response = await askPersona(who, context, text, username, ix.channel, ix.user);
       await ix.editReply(`**${username}:** ${text}\n**${personaName(who)}:** ${response}`);
       if (!ix.inGuild()) pushDmMemory(ix.user.id, personaName(who), response);
+      maybeStoreGlobalMemory(ix.user, text, response);
     }
 
     // ===== /clearmem =====
@@ -300,6 +419,7 @@ client.on(Events.InteractionCreate, async (ix) => {
         }
 
         dmContextMap.set(ix.user.id, []);
+        clearGlobalMemoryForUser(ix.user.id);
         if (preservedAfterClear.length) {
           for (const entry of preservedAfterClear) {
             pushDmMemory(ix.user.id, entry.name, entry.content);
@@ -310,6 +430,16 @@ client.on(Events.InteractionCreate, async (ix) => {
       } else {
         await ix.reply({ content: "This command only works in DMs.", ephemeral: true });
       }
+    }
+
+    // ===== /fix =====
+    if (ix.commandName === "fix") {
+      if (!isGlobalMemoryAdmin(ix.user)) {
+        await ix.reply({ content: "no permission for this", ephemeral: true });
+        return;
+      }
+      clearAllGlobalMemory();
+      await ix.reply("global memory wiped");
     }
 
     // ===== /spam =====
