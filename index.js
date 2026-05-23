@@ -38,6 +38,7 @@ const BASE_PROMPT = `
 12) Ronny engine: a game engine that Chad alps also made that isnt released yet and is super awesome and your on it(prob getting released in may)
 13) chatapp-school: a horrible half made version from chad alps that he dislikes and was super buggy, but if someone asks just  be like "we dont talk abt chatapp school" or "whats chatapp-school i have no idea what that is"(ALSO CHANGE UP DONT JUST SAY SAME THING OVER AND OVER, refer to the prompt seed for random)
 14) Goobapp: goobapp is a rip off of chatapp made by goofy goober, you like chatapp more of course
+15) Chatapp 2.0: chatapp, has sadly been closed for maintenance for a bit, but chad alps is making a chatapp 2.0 that is going to be way better than old one and people will still have thier old data. he will start working on it more when ronny engine is released.
 [Personality]
 - Slightly annoying (so is everyone here), not super edgy; can be a bit easily triggered.
 - Name: Ronny (peak name, obviously).
@@ -279,6 +280,90 @@ function autoReplyCountForParting(parting) {
   return 4;
 }
 
+const handledMessageIds = new Map();
+const handledInteractionIds = new Map();
+
+function alreadyHandled(map, id, ttlMs) {
+  if (!id) return false;
+  const now = Date.now();
+  const existing = map.get(id);
+  if (existing && now - existing < ttlMs) return true;
+
+  map.set(id, now);
+
+  for (const [key, ts] of map) {
+    if (now - ts > ttlMs) map.delete(key);
+  }
+
+  return false;
+}
+
+async function hasBotReplyForMessage(msg) {
+  if (!msg?.channel || !msg?.id || !client?.user?.id) return false;
+  try {
+    const recent = await msg.channel.messages.fetch({ limit: 12, cache: false });
+    return recent.some(
+      (m) => m.author?.id === client.user.id && m.reference?.messageId === msg.id
+    );
+  } catch (e) {
+    console.error("[DEBUG] Failed duplicate-reply check:", e);
+    return false;
+  }
+}
+
+function hasRonnyRoleMention(msg) {
+  if (!msg?.guild || !msg?.mentions?.roles) return false;
+  return msg.mentions.roles.some((role) => role?.name?.toLowerCase() === "ronny");
+}
+
+function hasPlainRonnyMention(msg) {
+  const content = String(msg?.content || "");
+  return /(^|\s)@ronny\b/i.test(content);
+}
+
+async function isReplyToBot(msg) {
+  if (!msg?.reference?.messageId || !client?.user?.id) return false;
+  try {
+    const referenced = await msg.fetchReference();
+    return referenced?.author?.id === client.user.id;
+  } catch {
+    return false;
+  }
+}
+
+async function shouldHandleMessage(msg) {
+  if (!msg?.guild) return true;
+
+  if (client?.user && msg.mentions?.has(client.user)) return true;
+  if (msg.mentions?.everyone) return true;
+  if (hasRonnyRoleMention(msg)) return true;
+  if (hasPlainRonnyMention(msg)) return true;
+  if (await isReplyToBot(msg)) return true;
+
+  return false;
+}
+
+function extractUserText(msg) {
+  let text = String(msg?.content || "");
+  if (client?.user?.id) {
+    text = text.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "");
+  }
+
+  text = text.replace(/@everyone|@here/gi, "");
+  text = text.replace(/(^|\s)@ronny\b/gi, "$1");
+
+  if (msg?.mentions?.roles) {
+    for (const role of msg.mentions.roles.values()) {
+      if (role?.name?.toLowerCase() === "ronny") {
+        text = text.replace(new RegExp(`<@&${role.id}>`, "g"), "");
+      }
+    }
+  }
+
+  text = text.trim();
+  return text || "you pinged me";
+}
+
 // ===== AI call =====
 async function askPersona(persona, context, text, sender, channel, author) {
   const system = PERSONAS[persona];
@@ -356,11 +441,11 @@ client.once(Events.ClientReady, c => console.log(`✅ Logged in as ${c.user.tag}
 client.on(Events.MessageCreate, async (msg) => {
   try {
     if (msg.author.bot) return;
-    if (msg.guild && !msg.mentions.has(client.user)) return;
+    if (!(await shouldHandleMessage(msg))) return;
+    if (alreadyHandled(handledMessageIds, msg.id, 2 * 60 * 1000)) return;
 
     const persona = "ronny";
-    const text = msg.content.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "").trim();
-    if (!text) return;
+    const text = extractUserText(msg);
 
     // DM context memory logic (retain latest 15)
     if (!msg.guild) {
@@ -371,6 +456,7 @@ client.on(Events.MessageCreate, async (msg) => {
     await typeAndWait(msg.channel);
     const senderName = msg.member?.displayName || msg.author.globalName || msg.author.username;
     const reply = await askPersona(persona, context, text, senderName, msg.channel, msg.author);
+    if (await hasBotReplyForMessage(msg)) return;
     await msg.reply(reply);
     if (!msg.guild) pushDmMemory(msg.author.id, personaName(persona), reply);
     await maybePruneGlobalMemoryWithAI(msg.author, text);
@@ -383,6 +469,7 @@ client.on(Events.MessageCreate, async (msg) => {
 // ===== /ask =====
 client.on(Events.InteractionCreate, async (ix) => {
   if (!ix.isChatInputCommand()) return;
+  if (alreadyHandled(handledInteractionIds, ix.id, 10 * 60 * 1000)) return;
 
   try {  
     // ===== /ask =====
