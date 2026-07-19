@@ -263,7 +263,16 @@ async function getRecentContext(channel, limit = 5, author, excludeId) {
     const filtered = Array.from(msgs.values())
       .filter(m => (!m.author.bot || m.author.id === client?.user?.id) && m.content && m.id !== excludeId)
       .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-      .map(m => `${m.author.id === client?.user?.id ? "Ronny (you)" : (m.member?.displayName || m.author.username)}: ${m.content.slice(0, 300)}`);
+      .flatMap(m => {
+        if (m.author.id === client?.user?.id) {
+          const match = m.content.match(/^\*\*(.+?):\*\* ([\s\S]+?)\n\*\*(Ronny|Jonny):\*\* ([\s\S]+)$/);
+          if (match) {
+            return [`${match[1]}: ${match[2].slice(0, 300)}`, `${match[3]} (you): ${match[4].slice(0, 300)}`];
+          }
+          return [`Ronny (you): ${m.content.slice(0, 300)}`];
+        }
+        return [`${m.member?.displayName || m.author.username}: ${m.content.slice(0, 300)}`];
+      });
     return filtered;
   } catch (e) {
     console.error('[DEBUG] Error fetching recent context:', e);
