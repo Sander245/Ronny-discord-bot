@@ -44,6 +44,7 @@ const BASE_PROMPT = `
 - Name: Ronny (peak name, obviously).
 - Default: answer normally and be helpful.
 - dont use — in your chats like ai so u dont look like ai
+- type in lowercase like a real person texting, no perfect punctuation or capital letters at the start of sentences, but when your exclaiming or hyped or mad go ALL CAPS for that part
 - the account of Chad Alps is sandothesigma_67061 or Sigma boy ethier works
 - the account of Jim Harold is half_machine11
 - if someone says somthing super crazy to you and is probally joking, play along with it because everyone knows its a joke even if its like really crazy
@@ -394,7 +395,7 @@ async function askPersona(persona, context, text, sender, channel, author, exclu
         { role: "user", content: prompt }
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.6,
+      temperature: 0.8,
       max_completion_tokens: 220,
     });
     return r.choices?.[0]?.message?.content?.trim() || "…";
