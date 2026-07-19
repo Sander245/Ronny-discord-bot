@@ -171,7 +171,7 @@ Reply with only one number:
         { role: "system", content: "You are a memory pruning assistant. Reply with only one number." },
         { role: "user", content: prunePrompt }
       ],
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: "llama-3.1-8b-instant",
       temperature: 0,
       max_completion_tokens: 6,
     });
@@ -390,7 +390,7 @@ async function askPersona(persona, context, text, sender, channel, author) {
         { role: "system", content: system },
         { role: "user", content: prompt }
       ],
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.6,
       max_completion_tokens: 220,
     });
@@ -411,7 +411,7 @@ Should we recall the latest 15 messages for better context? Reply only "yes" or 
         { role: "system", content: "You are a memory-routing assistant. Reply only 'yes' or 'no'. Reply 'yes' when the user message likely needs extra context, references prior chat, is ambiguous, or asks follow-ups the bot may not know from only 5 messages." },
         { role: "user", content: deciderPrompt }
       ],
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: "llama-3.1-8b-instant",
       temperature: 0,
       max_completion_tokens: 3,
     });
