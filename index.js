@@ -245,7 +245,7 @@ function pushDmMemory(userId, name, content, maxSize = 15) {
   dmContextMap.set(userId, arr);
 }
 
-async function getRecentContext(channel, limit = 5, author) {
+async function getRecentContext(channel, limit = 5, author, excludeId) {
   // If we have no channel object or it's a DM, use local memory
   if (!channel || (channel.isDMBased && channel.isDMBased())) {
     const userId = author?.id;
@@ -257,9 +257,9 @@ async function getRecentContext(channel, limit = 5, author) {
   try {
     const msgs = await channel.messages.fetch({ limit, cache: false });
     const filtered = Array.from(msgs.values())
-      .filter(m => !m.author.bot && m.content)
+      .filter(m => (!m.author.bot || m.author.id === client?.user?.id) && m.content && m.id !== excludeId)
       .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-      .map(m => `${m.member?.displayName || m.author.username}: ${m.content.slice(0, 300)}`);
+      .map(m => `${m.author.id === client?.user?.id ? "Ronny (you)" : (m.member?.displayName || m.author.username)}: ${m.content.slice(0, 300)}`);
     return filtered;
   } catch (e) {
     console.error('[DEBUG] Error fetching recent context:', e);
@@ -365,7 +365,7 @@ function extractUserText(msg) {
 }
 
 // ===== AI call =====
-async function askPersona(persona, context, text, sender, channel, author) {
+async function askPersona(persona, context, text, sender, channel, author, excludeId) {
   const system = PERSONAS[persona];
   let contextBlock = buildContextBlock(context || [], "Recent memory");
   const globalLines = getGlobalMemoryLinesForUser(author?.id);
@@ -375,12 +375,12 @@ async function askPersona(persona, context, text, sender, channel, author) {
   if (context && context.length) {
     const needsRecall = await shouldRecallMoreContext(text, context);
     if (needsRecall) {
-      const recalled = await getRecentContext(channel, 15, author);
+      const recalled = await getRecentContext(channel, 15, author, excludeId);
       contextBlock += buildContextBlock(recalled, "Recalled memory");
     }
   }
 
-  const prompt = `${contextBlock}${sender}: ${text}\n\nRespond as ${personaName(persona)}. Only @mention the other if it's clearly directed at them.`;
+  const prompt = `${contextBlock}The user currently talking to you is "${sender}". Their message: "${text}"\n\nRespond as ${personaName(persona)}. Address ${sender}, not anyone from the context. Only @mention the other if it's clearly directed at them.`;
   // Debug: log the context block and prompt
   console.log("[DEBUG] Context block sent to AI:\n", contextBlock);
   console.log("[DEBUG] Full prompt sent to AI:\n", prompt);
@@ -452,10 +452,10 @@ client.on(Events.MessageCreate, async (msg) => {
       pushDmMemory(msg.author.id, msg.author.username, text);
     }
 
-    const context = await getRecentContext(msg.channel, 5, msg.author);
+    const context = await getRecentContext(msg.channel, 5, msg.author, msg.id);
     await typeAndWait(msg.channel);
     const senderName = msg.member?.displayName || msg.author.globalName || msg.author.username;
-    const reply = await askPersona(persona, context, text, senderName, msg.channel, msg.author);
+    const reply = await askPersona(persona, context, text, senderName, msg.channel, msg.author, msg.id);
     if (await hasBotReplyForMessage(msg)) return;
     await msg.reply(reply);
     if (!msg.guild) pushDmMemory(msg.author.id, personaName(persona), reply);
