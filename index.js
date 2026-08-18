@@ -8,7 +8,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const CHAT_MODEL = "qwen/qwen3.6-27b";
 const UTIL_MODEL = "openai/gpt-oss-20b";
 
-const MODE_TEMPS = { normal: 0.75, overtemp: 1.25 };
+const MODE_TEMPS = { normal: 0.75, overtemp: 1 };
 const userModes = new Map();
 
 function getUserMode(userId) {
@@ -546,8 +546,8 @@ client.on(Events.InteractionCreate, async (ix) => {
       const applied = setUserMode(ix.user.id, chosen);
       await ix.reply({
         content: applied === "overtemp"
-          ? "**overtemp** ON (experimental). ronny is gonna be way more rude and random with u now. dont cry abt it"
-          : "back to **normal** ronny for u",
+          ? "**overtemp** ON (experimental). ronny is gonna be way more rude and random with u now."
+          : "back to **normal** ronny",
         ephemeral: true,
       });
     }
