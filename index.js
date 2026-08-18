@@ -5,6 +5,9 @@ const { Groq } = require("groq-sdk");
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+const CHAT_MODEL = "openai/gpt-oss-120b";
+const UTIL_MODEL = "openai/gpt-oss-20b";
+
 // ===== Typing delay helper =====
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function randMs(min = 0, max = 0) {
@@ -175,9 +178,11 @@ Reply with only one number:
         { role: "system", content: "You are a memory pruning assistant. Reply with only one number." },
         { role: "user", content: prunePrompt }
       ],
-      model: "llama-3.1-8b-instant",
+      model: UTIL_MODEL,
       temperature: 0,
-      max_completion_tokens: 6,
+      reasoning_effort: "low",
+      reasoning_format: "hidden",
+      max_completion_tokens: 200,
     });
     const raw = r.choices?.[0]?.message?.content?.trim() || "0";
     const idx = Number.parseInt(raw, 10);
@@ -403,9 +408,11 @@ async function askPersona(persona, context, text, sender, channel, author, exclu
         { role: "system", content: system },
         { role: "user", content: prompt }
       ],
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.8,
-      max_completion_tokens: 220,
+      model: CHAT_MODEL,
+      temperature: 0.9,
+      reasoning_effort: "low",
+      reasoning_format: "hidden",
+      max_completion_tokens: 500,
     });
     return r.choices?.[0]?.message?.content?.trim() || "…";
   } catch (e) {
@@ -424,9 +431,11 @@ Should we recall the latest 15 messages for better context? Reply only "yes" or 
         { role: "system", content: "You are a memory-routing assistant. Reply only 'yes' or 'no'. Reply 'yes' when the user message likely needs extra context, references prior chat, is ambiguous, or asks follow-ups the bot may not know from only 5 messages." },
         { role: "user", content: deciderPrompt }
       ],
-      model: "llama-3.1-8b-instant",
+      model: UTIL_MODEL,
       temperature: 0,
-      max_completion_tokens: 3,
+      reasoning_effort: "low",
+      reasoning_format: "hidden",
+      max_completion_tokens: 200,
     });
     const reply = r.choices?.[0]?.message?.content?.trim().toLowerCase();
     return reply && reply.startsWith("y");
