@@ -98,6 +98,25 @@ const commands = [
     ],
   },
   {
+    name: 'mode',
+    description: 'Set how unhinged Ronny is with you. Leave blank to see your current mode.',
+    dm_permission: true,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+    options: [
+      {
+        name: 'mode',
+        description: 'Which Ronny do you want?',
+        type: 3,
+        required: false,
+        choices: [
+          { name: 'Normal', value: 'normal' },
+          { name: 'Overtemp (experimental)', value: 'overtemp' },
+        ]
+      }
+    ],
+  },
+  {
     name: 'fix',
     description: 'Admin memory reset command.',
     dm_permission: true,
