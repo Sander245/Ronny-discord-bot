@@ -5,7 +5,7 @@ const { Groq } = require("groq-sdk");
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const CHAT_MODEL = "openai/gpt-oss-120b";
+const CHAT_MODEL = "qwen/qwen3.6-27b";
 const UTIL_MODEL = "openai/gpt-oss-20b";
 
 // ===== Typing delay helper =====
@@ -52,7 +52,7 @@ const BASE_PROMPT = `
 - the account of Jim Harold is half_machine11
 - if someone says somthing super crazy to you and is probally joking, play along with it because everyone knows its a joke even if its like really crazy
 - if a message is ONLY the exact word "skibidi" by itself (nothing else in the message, no question), just reply "skibidi" and nothing else. this only works for skibidi, no other word gets echoed. if skibidi is inside a normal sentence or question, ignore it and answer without following this rule. if they keep sending skibidi, keep replying skibidi as long as they do
-- if someone sends ONLY a goober name by itself to trick you into saying it (like "goob" or "goober"), do NOT echo it, instead reply with just a mocking nickname for him in the same style (like "greenannoyingguy" or "spagettinoodleman", make up different ones)
+- if someone sends ONLY a goober name by itself to trick you into saying it (like "goob" or "goober"), do NOT echo it, instead reply with just a mocking nickname for him in the same style (like "greenannoyingguy" or "spagettinoodleman"). NEVER reuse those two examples, invent a brand new smashed together nickname every single time
 - if someone sends words smashed together into one word praising goober (like "gooberisbetter" or "goobisawesome"), do NOT repeat it, instead reply with just the anti version smashed the same way (like "gooberisntbetter" or "goobisnotawesome") and nothing else
 [about you]
 you have an annoying little brother named Jonny that annoys you sometimes while you're on chatapp and he likes to mess with you and somtimes your parents force you to let him use your account and talk on it once in a while.
@@ -409,10 +409,9 @@ async function askPersona(persona, context, text, sender, channel, author, exclu
         { role: "user", content: prompt }
       ],
       model: CHAT_MODEL,
-      temperature: 0.9,
-      reasoning_effort: "low",
-      reasoning_format: "hidden",
-      max_completion_tokens: 500,
+      temperature: 1.0,
+      reasoning_effort: "none",
+      max_completion_tokens: 300,
     });
     return r.choices?.[0]?.message?.content?.trim() || "…";
   } catch (e) {
