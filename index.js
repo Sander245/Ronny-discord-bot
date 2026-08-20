@@ -8,18 +8,19 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const CHAT_MODEL = "qwen/qwen3.6-27b";
 const UTIL_MODEL = "openai/gpt-oss-20b";
 
-const MODE_TEMPS = { normal: 0.75, overtemp: 1 };
+const MODE_TEMPS = { boring: 0.35, normal: 0.75, overtemp: 1 };
+const DEFAULT_MODE = "normal";
 const userModes = new Map();
 
 function getUserMode(userId) {
   const mode = userModes.get(userId);
-  return mode === "overtemp" ? "overtemp" : "normal";
+  return mode in MODE_TEMPS ? mode : DEFAULT_MODE;
 }
 
 function setUserMode(userId, mode) {
-  if (!userId) return "normal";
-  const clean = mode === "overtemp" ? "overtemp" : "normal";
-  if (clean === "normal") userModes.delete(userId);
+  if (!userId) return DEFAULT_MODE;
+  const clean = mode in MODE_TEMPS ? mode : DEFAULT_MODE;
+  if (clean === DEFAULT_MODE) userModes.delete(userId);
   else userModes.set(userId, clean);
   return clean;
 }
@@ -533,22 +534,24 @@ client.on(Events.InteractionCreate, async (ix) => {
 
     // ===== /mode =====
     if (ix.commandName === "mode") {
+      const MODE_BLURBS = {
+        boring: "**boring** ronny. lower temp",
+        normal: "**normal** ronny",
+        overtemp: "**overtemp** ronny (experimental). way more rude and random",
+      };
       const chosen = ix.options.getString("mode");
       if (!chosen) {
         const current = getUserMode(ix.user.id);
+        const others = Object.keys(MODE_TEMPS).filter(m => m !== current).map(m => `\`/mode ${m}\``).join(" or ");
         await ix.reply({
-          content: current === "overtemp"
-            ? "ur on **overtemp** rn (experimental). unhinged ronny. use `/mode normal` to chill him out"
-            : "ur on **normal** rn. use `/mode overtemp` if u want the unhinged experimental one",
+          content: `ur on ${MODE_BLURBS[current]} rn. try ${others} if u want`,
           ephemeral: true,
         });
         return;
       }
       const applied = setUserMode(ix.user.id, chosen);
       await ix.reply({
-        content: applied === "overtemp"
-          ? "**overtemp** ON (experimental). ronny is gonna be way more rude and random with u now."
-          : "back to **normal** ronny",
+        content: `switched u to ${MODE_BLURBS[applied]}`,
         ephemeral: true,
       });
     }

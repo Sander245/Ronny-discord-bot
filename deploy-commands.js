@@ -110,6 +110,7 @@ const commands = [
         type: 3,
         required: false,
         choices: [
+          { name: 'Boring (experimental)', value: 'boring' },
           { name: 'Normal', value: 'normal' },
           { name: 'Overtemp (experimental)', value: 'overtemp' },
         ]
