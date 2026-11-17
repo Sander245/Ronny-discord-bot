@@ -125,6 +125,37 @@ const commands = [
     contexts: [0, 1, 2],
     options: [],
   },
+  {
+    name: 'tempchat',
+    description: 'Admin only: chat with Ronny using your own prompt (only affects you).',
+    dm_permission: true,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+    options: [
+      {
+        name: 'start',
+        description: 'Start a temp chat with your own prompt',
+        type: 1,
+        options: [
+          {
+            name: 'prompt',
+            description: 'The prompt Ronny should follow when talking to you',
+            type: 3,
+            required: true,
+            max_length: 6000,
+          },
+          {
+            name: 'keep_ronny',
+            description: "Keep Ronny's normal personality and add your prompt on top (default: replace it)",
+            type: 5,
+            required: false,
+          },
+        ],
+      },
+      { name: 'end', description: 'End your temp chat and go back to normal Ronny', type: 1 },
+      { name: 'view', description: 'See your current temp chat prompt', type: 1 },
+    ],
+  },
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);

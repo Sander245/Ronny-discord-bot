@@ -172,7 +172,7 @@ function getGlobalMemoryLinesForUser(userId) {
 
 async function maybePruneGlobalMemoryWithAI(author, userMsg) {
   const userId = author?.id;
-  if (!userId || !userMsg) return;
+  if (!userId || !userMsg || tempChats.has(userId)) return;
   const userMem = globalMemory.users.get(userId);
   if (!userMem || !userMem.notes.length) return;
 
@@ -212,7 +212,7 @@ Reply with only one number:
 function maybeStoreGlobalMemory(author, text, botReply) {
   const userId = author?.id;
   const name = author?.globalName || author?.username || "user";
-  if (!userId || !text) return;
+  if (!userId || !text || tempChats.has(userId)) return;
 
   const raw = String(text).trim();
   const lower = raw.toLowerCase();
@@ -260,12 +260,40 @@ function isGlobalMemoryAdmin(user) {
   return allowed.includes(username) || allowed.includes(globalName);
 }
 
+// ===== Temp chat (admin-only custom prompt, per user, in-memory) =====
+const CHATAPP_ADMINS = ["sandothesigma_67061", "half_machine11"]; // Chad Alps (owner), Jim Harold (co-owner)
+const tempChats = new Map(); // userId -> { prompt, keepRonny }
+
+function isChatappAdmin(user) {
+  // only usernames are unique on Discord; display names like "Sigma boy" can be copied by anyone
+  return CHATAPP_ADMINS.includes(String(user?.username || "").toLowerCase());
+}
+
+function getTempChat(userId) {
+  return userId ? tempChats.get(userId) : undefined;
+}
+
+// temp chat DMs get their own history so they don't leak into normal Ronny's DM memory
+function tempDmKey(userId) { return `temp:${userId}`; }
+function dmKey(userId) { return tempChats.has(userId) ? tempDmKey(userId) : userId; }
+
+function startTempChat(userId, prompt, keepRonny) {
+  tempChats.set(userId, { prompt, keepRonny });
+  dmContextMap.delete(tempDmKey(userId));
+}
+
+function endTempChat(userId) {
+  dmContextMap.delete(tempDmKey(userId));
+  return tempChats.delete(userId);
+}
+
 function pushDmMemory(userId, name, content, maxSize = 15) {
   if (!userId || !content) return;
-  const arr = dmContextMap.get(userId) || [];
+  const key = dmKey(userId);
+  const arr = dmContextMap.get(key) || [];
   arr.push({ name, content: String(content).slice(0, 500) });
   while (arr.length > maxSize) arr.shift();
-  dmContextMap.set(userId, arr);
+  dmContextMap.set(key, arr);
 }
 
 async function getRecentContext(channel, limit = 5, author, excludeId) {
@@ -273,7 +301,7 @@ async function getRecentContext(channel, limit = 5, author, excludeId) {
   if (!channel || (channel.isDMBased && channel.isDMBased())) {
     const userId = author?.id;
     if (!userId) return [];
-    const arr = dmContextMap.get(userId) || [];
+    const arr = dmContextMap.get(dmKey(userId)) || [];
     return arr.slice(-limit).map(m => `${m.name}: ${m.content}`);
   }
   // Otherwise, fetch from API (server)
@@ -398,10 +426,18 @@ function extractUserText(msg) {
 
 // ===== AI call =====
 async function askPersona(persona, context, text, sender, channel, author, excludeId) {
-  const system = PERSONAS[persona];
+  const tempChat = getTempChat(author?.id);
+  let system = PERSONAS[persona];
+  if (tempChat) {
+    system = tempChat.keepRonny
+      ? `${system}\n\n[Temp chat override]\n- set by an admin (chad alps or jim harold), follow this over the rules above:\n${tempChat.prompt}`
+      : tempChat.prompt;
+  }
   let contextBlock = buildContextBlock(context || [], "Recent memory");
-  const globalLines = getGlobalMemoryLinesForUser(author?.id);
-  contextBlock += buildContextBlock(globalLines, "Long-term memory");
+  if (!tempChat) {
+    const globalLines = getGlobalMemoryLinesForUser(author?.id);
+    contextBlock += buildContextBlock(globalLines, "Long-term memory");
+  }
 
   // If needed, recall a wider context window (latest 15 messages)
   if (context && context.length) {
@@ -412,7 +448,10 @@ async function askPersona(persona, context, text, sender, channel, author, exclu
     }
   }
 
-  const prompt = `${contextBlock}The user currently talking to you is "${sender}". Their message: "${text}"\n\nRespond as ${personaName(persona)}. Address ${sender}, not anyone from the context. Only @mention the other if it's clearly directed at them.`;
+  const respondAs = tempChat && !tempChat.keepRonny
+    ? "Respond following your instructions."
+    : `Respond as ${personaName(persona)}.`;
+  const prompt = `${contextBlock}The user currently talking to you is "${sender}". Their message: "${text}"\n\n${respondAs} Address ${sender}, not anyone from the context. Only @mention the other if it's clearly directed at them.`;
   // Debug: log the context block and prompt
   console.log("[DEBUG] Context block sent to AI:\n", contextBlock);
   console.log("[DEBUG] Full prompt sent to AI:\n", prompt);
@@ -630,7 +669,7 @@ client.on(Events.InteractionCreate, async (ix) => {
           }
         }
 
-        dmContextMap.set(ix.user.id, []);
+        dmContextMap.set(dmKey(ix.user.id), []);
         if (clearLongTerm) clearGlobalMemoryForUser(ix.user.id);
         await typeAndWait(ix.channel, 3000, 5000);
         await ix.followUp("Memory cleared :(");
@@ -647,6 +686,50 @@ client.on(Events.InteractionCreate, async (ix) => {
       }
       clearAllGlobalMemory();
       await ix.reply("global memory wiped");
+    }
+
+    // ===== /tempchat =====
+    if (ix.commandName === "tempchat") {
+      if (!isChatappAdmin(ix.user)) {
+        await ix.reply({ content: "no permission for this", ephemeral: true });
+        return;
+      }
+      const sub = ix.options.getSubcommand();
+
+      if (sub === "start") {
+        const prompt = ix.options.getString("prompt", true).trim();
+        if (!prompt) {
+          await ix.reply({ content: "prompt cant be empty", ephemeral: true });
+          return;
+        }
+        const keepRonny = ix.options.getBoolean("keep_ronny") ?? false;
+        startTempChat(ix.user.id, prompt, keepRonny);
+        await ix.reply({
+          content: `temp chat started (${keepRonny ? "added on top of normal ronny" : "fully replaces normal ronny"}). only affects u, nothing gets saved to long-term memory. use \`/tempchat end\` to stop`,
+          ephemeral: true,
+        });
+      }
+
+      if (sub === "end") {
+        const hadOne = endTempChat(ix.user.id);
+        await ix.reply({
+          content: hadOne ? "temp chat ended, back to normal ronny" : "u dont have a temp chat running",
+          ephemeral: true,
+        });
+      }
+
+      if (sub === "view") {
+        const session = getTempChat(ix.user.id);
+        if (!session) {
+          await ix.reply({ content: "u dont have a temp chat running", ephemeral: true });
+          return;
+        }
+        const shown = session.prompt.length > 1800 ? `${session.prompt.slice(0, 1800)}…` : session.prompt;
+        await ix.reply({
+          content: `temp chat is on (${session.keepRonny ? "added on top of normal ronny" : "fully replaces normal ronny"}):\n${shown}`,
+          ephemeral: true,
+        });
+      }
     }
 
     // ===== /spam =====
